@@ -2,6 +2,8 @@
 
 A tetromino-style SVG/PNG mask generator. Procedurally place small connected pixel clusters across a canvas to produce noise patterns, dither textures, and design masks — then export as crisp SVG or pixel-perfect PNG.
 
+**Live demo:** [bit.franvy.com](https://bit.franvy.com)
+
 ![maskbit preview](./public/preview.png)
 
 ## Features

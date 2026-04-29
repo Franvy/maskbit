@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast, Toaster } from "sonner";
 import {
   Copy,
@@ -37,7 +37,36 @@ export default function App() {
   const [opacity, setOpacity] = useState(0.4);
   const [bg, setBg] = useState("#ffffff");
   const [scale, setScale] = useState(4);
+  const [autoZoom, setAutoZoom] = useState(true);
+  const [previewSize, setPreviewSize] = useState({ w: 0, h: 0 });
   const [seed, setSeed] = useState(0);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // Track preview viewport size for auto-zoom
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setPreviewSize({
+        w: entry.contentRect.width,
+        h: entry.contentRect.height,
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Best zoom for current canvas given available preview area
+  const autoScale = useMemo(() => {
+    if (!previewSize.w || !previewSize.h) return scale;
+    const padding = 96; // p-8 (×2) + frame padding (16×2)
+    const availW = Math.max(80, previewSize.w - padding);
+    const availH = Math.max(80, previewSize.h - padding);
+    const fit = Math.min(availW / width, availH / height);
+    return Math.max(1, Math.min(12, Math.round(fit)));
+  }, [width, height, previewSize, scale]);
+
+  const effectiveScale = autoZoom ? autoScale : scale;
 
   const { svg, count } = useMemo(() => {
     void seed;
@@ -180,13 +209,11 @@ export default function App() {
                   unit="px"
                   showInput
                 />
-                <SliderRow
-                  label="Preview zoom"
-                  value={scale}
-                  setValue={setScale}
-                  min={1}
-                  max={12}
-                  unit="×"
+                <ZoomRow
+                  value={effectiveScale}
+                  setScale={setScale}
+                  autoZoom={autoZoom}
+                  setAutoZoom={setAutoZoom}
                 />
               </Section>
 
@@ -302,7 +329,7 @@ export default function App() {
           {/* Preview */}
           <main className="flex-1 relative overflow-hidden bg-background bg-checker">
             {/* Inner scroll container — keeps overlays fixed relative to <main> */}
-            <div className="absolute inset-0 overflow-auto">
+            <div ref={previewRef} className="absolute inset-0 overflow-auto">
               <div className="min-h-full min-w-full w-fit flex items-center justify-center p-8">
                 <div
                   className="rounded-md shadow-2xl ring-1 ring-border/60"
@@ -310,11 +337,11 @@ export default function App() {
                 >
                   <img
                     src={dataUrl}
-                    width={width * scale}
-                    height={height * scale}
+                    width={width * effectiveScale}
+                    height={height * effectiveScale}
                     style={{
-                      width: width * scale,
-                      height: height * scale,
+                      width: width * effectiveScale,
+                      height: height * effectiveScale,
                       maxWidth: "none",
                       imageRendering: "pixelated",
                       display: "block",
@@ -327,7 +354,7 @@ export default function App() {
 
             {/* Floating dimension chip — stays fixed over preview */}
             <div className="pointer-events-none absolute top-4 right-4 px-2.5 py-1 rounded-md bg-card/80 backdrop-blur border border-border text-[11px] font-mono text-muted-foreground tabular-nums z-10">
-              {width} × {height} · {scale}×
+              {width} × {height} · {effectiveScale}×{autoZoom ? " (auto)" : ""}
             </div>
           </main>
         </div>
@@ -444,6 +471,55 @@ function SliderRow({
         max={max}
         step={1}
         onValueChange={(v) => setValue(v[0])}
+      />
+    </div>
+  );
+}
+
+function ZoomRow({
+  value,
+  setScale,
+  autoZoom,
+  setAutoZoom,
+}: {
+  value: number;
+  setScale: (v: number) => void;
+  autoZoom: boolean;
+  setAutoZoom: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs text-muted-foreground font-normal flex items-center gap-1.5">
+          Preview zoom
+          <button
+            type="button"
+            onClick={() => setAutoZoom(!autoZoom)}
+            className={
+              "px-1.5 py-0.5 text-[9px] font-mono uppercase rounded border transition-colors " +
+              (autoZoom
+                ? "bg-foreground/15 border-foreground/40 text-foreground"
+                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground")
+            }
+            title={autoZoom ? "Auto-fit on (click to set manually)" : "Auto-fit off (click to enable)"}
+            aria-pressed={autoZoom}
+          >
+            Auto
+          </button>
+        </Label>
+        <span className="text-xs font-mono tabular-nums text-foreground">
+          {value}×
+        </span>
+      </div>
+      <Slider
+        value={[value]}
+        min={1}
+        max={12}
+        step={1}
+        onValueChange={(v) => {
+          if (autoZoom) setAutoZoom(false);
+          setScale(v[0]);
+        }}
       />
     </div>
   );

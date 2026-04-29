@@ -207,9 +207,11 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col md:flex-row min-h-0">
-          {/* Sidebar */}
-          <aside className="w-full md:w-80 shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col bg-card/30">
+        <div className="flex-1 flex flex-col-reverse md:flex-row min-h-0">
+          {/* Sidebar — bottom on mobile, left on desktop. min-h-0 lets the
+              inner overflow-y-auto kick in instead of pushing the canvas
+              off-screen on small viewports. */}
+          <aside className="w-full md:w-80 md:shrink-0 flex-1 md:flex-initial min-h-0 max-h-[55vh] md:max-h-none border-t md:border-t-0 md:border-r border-border flex flex-col bg-card/30">
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <Section title="Canvas" icon={<Settings2 className="size-3.5" />}>
                 <SliderRow
@@ -347,8 +349,9 @@ export default function App() {
             </div>
           </aside>
 
-          {/* Preview */}
-          <main className="flex-1 relative overflow-hidden bg-background bg-checker">
+          {/* Preview — top on mobile (with min height so it's always
+              visible), right on desktop */}
+          <main className="flex-1 min-h-[45vh] md:min-h-0 relative overflow-hidden bg-background bg-checker">
             {/* Inner scroll container — keeps overlays fixed relative to <main> */}
             <div ref={previewRef} className="absolute inset-0 overflow-auto">
               <div className="min-h-full min-w-full w-fit flex items-center justify-center p-8">

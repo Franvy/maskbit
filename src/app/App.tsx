@@ -196,10 +196,10 @@ export default function App() {
           <div className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="icon" asChild>
               <a
-                href="https://github.com"
+                href="https://github.com/Franvy/maskbit"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="View on GitHub"
+                aria-label="View maskbit on GitHub"
               >
                 <Github className="size-4" />
               </a>
@@ -410,21 +410,14 @@ function hexToRgb(hex: string): [number, number, number] {
 function BrandMark() {
   return (
     <div className="flex items-center gap-2">
-      {/* Pixel-art logo: a tetromino glyph */}
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 8 8"
+      <img
+        src="/icon.svg"
+        alt=""
+        width={22}
+        height={22}
+        className="rounded-md"
         aria-hidden
-        className="text-foreground"
-      >
-        <rect x="0" y="0" width="3" height="3" fill="currentColor" />
-        <rect x="3" y="0" width="2" height="2" fill="currentColor" opacity="0.6" />
-        <rect x="0" y="3" width="2" height="2" fill="currentColor" opacity="0.6" />
-        <rect x="3" y="3" width="5" height="5" fill="currentColor" />
-        <rect x="5" y="0" width="3" height="2" fill="currentColor" opacity="0.3" />
-        <rect x="0" y="5" width="2" height="3" fill="currentColor" opacity="0.3" />
-      </svg>
+      />
       <span className="font-mono font-semibold text-sm tracking-tight">
         maskbit
       </span>

@@ -305,6 +305,9 @@ export default function App() {
 
             {/* Sticky action footer */}
             <div className="border-t border-border p-3 space-y-2 bg-card/60 backdrop-blur-sm">
+              <p className="text-[11px] text-muted-foreground text-center font-mono">
+                {count} cells · {width} × {height}
+              </p>
               <Button onClick={regenerate} className="w-full" size="lg">
                 <RefreshCw className="size-4" />
                 Regenerate
@@ -341,9 +344,6 @@ export default function App() {
                   SVG
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground text-center font-mono">
-                {count} cells · {width} × {height}
-              </p>
             </div>
           </aside>
 

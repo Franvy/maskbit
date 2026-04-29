@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast, Toaster } from "sonner";
 import {
   Copy,
@@ -42,6 +48,19 @@ export default function App() {
   const [seed, setSeed] = useState(0);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Defer heavy params so sliders stay responsive during drag.
+  // React keeps the slider thumb at the new value (high priority) while the
+  // pixel computation + canvas paint catch up at lower priority.
+  const dW = useDeferredValue(width);
+  const dH = useDeferredValue(height);
+  const dGap = useDeferredValue(gap);
+  const dDensity = useDeferredValue(density);
+  const dMinCells = useDeferredValue(minCells);
+  const dMaxCells = useDeferredValue(maxCells);
+  const dColor = useDeferredValue(color);
+  const dOpacity = useDeferredValue(opacity);
+  const dSeed = useDeferredValue(seed);
+
   // Track preview viewport size for auto-zoom
   useEffect(() => {
     const el = previewRef.current;
@@ -62,44 +81,52 @@ export default function App() {
     const padding = 96; // p-8 (×2) + frame padding (16×2)
     const availW = Math.max(80, previewSize.w - padding);
     const availH = Math.max(80, previewSize.h - padding);
-    const fit = Math.min(availW / width, availH / height);
+    // Use deferred canvas dims so zoom stays in sync with what's painted.
+    const fit = Math.min(availW / dW, availH / dH);
     return Math.max(1, Math.min(12, Math.round(fit)));
-  }, [width, height, previewSize, scale]);
+  }, [dW, dH, previewSize, scale]);
 
   const effectiveScale = autoZoom ? autoScale : scale;
 
-  const { svg, count } = useMemo(() => {
-    void seed;
-    const pixels = generateNoisePixels({
-      width,
-      height,
-      gap,
-      density,
-      minCells,
-      maxCells,
+  // Geometry → pixels. Color/opacity intentionally NOT here; they only affect
+  // paint, not which cells exist. This avoids regenerating shapes when only
+  // tinting changes.
+  const pixels = useMemo(() => {
+    void dSeed;
+    return generateNoisePixels({
+      width: dW,
+      height: dH,
+      gap: dGap,
+      density: dDensity,
+      minCells: dMinCells,
+      maxCells: dMaxCells,
     });
-    return {
-      svg: pixelsToSvg(pixels, width, height, color, opacity),
-      count: pixels.length,
-    };
-  }, [width, height, gap, density, color, opacity, minCells, maxCells, seed]);
+  }, [dW, dH, dGap, dDensity, dMinCells, dMaxCells, dSeed]);
 
-  const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  const count = pixels.length;
 
-  const renderPng = async (): Promise<Blob | null> => {
-    const img = new Image();
-    img.src = dataUrl;
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+  // Paint the preview canvas. Way faster than rendering an SVG data-URL on
+  // every state change — no string encoding, no image decode, no re-rasterize.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (canvas.width !== dW) canvas.width = dW;
+    if (canvas.height !== dH) canvas.height = dH;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, 0, 0, width, height);
+    if (!ctx) return;
+    ctx.clearRect(0, 0, dW, dH);
+    ctx.fillStyle = dColor;
+    ctx.globalAlpha = dOpacity;
+    for (let i = 0; i < pixels.length; i++) {
+      ctx.fillRect(pixels[i].x, pixels[i].y, 1, 1);
+    }
+  }, [pixels, dW, dH, dColor, dOpacity]);
+
+  // PNG: read directly from the canvas we already painted.
+  const renderPng = async (): Promise<Blob | null> => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
     return await new Promise<Blob | null>((res) =>
       canvas.toBlob((b) => res(b), "image/png"),
     );
@@ -124,18 +151,20 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `maskbit-${width}x${height}.png`;
+    a.download = `maskbit-${dW}x${dH}.png`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("PNG downloaded");
   };
 
   const downloadSvg = () => {
+    // Build SVG string lazily, only when the user actually exports.
+    const svg = pixelsToSvg(pixels, dW, dH, dColor, dOpacity);
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `maskbit-${width}x${height}.svg`;
+    a.download = `maskbit-${dW}x${dH}.svg`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("SVG downloaded");
@@ -159,7 +188,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [svg]);
+  }, [pixels, dW, dH, dColor, dOpacity]);
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -321,7 +350,7 @@ export default function App() {
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground text-center font-mono">
-                {count} cells · {width} × {height}
+                {count} cells · {dW} × {dH}
               </p>
             </div>
           </aside>
@@ -335,18 +364,18 @@ export default function App() {
                   className="rounded-md shadow-2xl ring-1 ring-border/60"
                   style={{ background: bg, padding: 16 }}
                 >
-                  <img
-                    src={dataUrl}
-                    width={width * effectiveScale}
-                    height={height * effectiveScale}
+                  <canvas
+                    ref={canvasRef}
+                    width={dW}
+                    height={dH}
+                    aria-label={`Generated noise mask, ${dW} by ${dH} pixels`}
                     style={{
-                      width: width * effectiveScale,
-                      height: height * effectiveScale,
+                      width: dW * effectiveScale,
+                      height: dH * effectiveScale,
                       maxWidth: "none",
                       imageRendering: "pixelated",
                       display: "block",
                     }}
-                    alt={`Generated noise mask, ${width} by ${height} pixels`}
                   />
                 </div>
               </div>
@@ -354,7 +383,7 @@ export default function App() {
 
             {/* Floating dimension chip — stays fixed over preview */}
             <div className="pointer-events-none absolute top-4 right-4 px-2.5 py-1 rounded-md bg-card/80 backdrop-blur border border-border text-[11px] font-mono text-muted-foreground tabular-nums z-10">
-              {width} × {height} · {effectiveScale}×{autoZoom ? " (auto)" : ""}
+              {dW} × {dH} · {effectiveScale}×{autoZoom ? " (auto)" : ""}
             </div>
           </main>
         </div>

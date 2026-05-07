@@ -484,17 +484,11 @@ function SliderRow({
           ) : null}
         </Label>
         {showInput ? (
-          <Input
-            type="number"
+          <NumberInput
+            value={value}
+            setValue={setValue}
             min={min}
             max={max}
-            value={value}
-            onChange={(e) =>
-              setValue(
-                Math.max(min, Math.min(max, Number(e.target.value) || 0)),
-              )
-            }
-            className="h-6 w-16 px-1.5 text-xs font-mono tabular-nums text-right"
           />
         ) : (
           <span className="text-xs font-mono tabular-nums text-foreground">
@@ -511,6 +505,62 @@ function SliderRow({
         onValueChange={(v) => setValue(v[0])}
       />
     </div>
+  );
+}
+
+/**
+ * Number input that defers clamping/parsing until blur or Enter, so users
+ * can freely type intermediate values like "5" on the way to "500" without
+ * the controlled value snapping back to the min on every keystroke.
+ */
+function NumberInput({
+  value,
+  setValue,
+  min,
+  max,
+}: {
+  value: number;
+  setValue: (v: number) => void;
+  min: number;
+  max: number;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  // Sync external value changes (e.g., dragging the slider) into the draft.
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const n = Math.round(Number(draft));
+    if (!Number.isFinite(n)) {
+      setDraft(String(value)); // revert non-numeric input
+      return;
+    }
+    const clamped = Math.max(min, Math.min(max, n));
+    setValue(clamped);
+    setDraft(String(clamped));
+  };
+
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
+          setDraft(String(value));
+          e.currentTarget.blur();
+        }
+      }}
+      className="h-6 w-16 px-1.5 text-xs font-mono tabular-nums text-right"
+    />
   );
 }
 
